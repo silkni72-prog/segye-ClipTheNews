@@ -15,6 +15,8 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify(body),
       // 타임아웃 방지 - 영상 생성은 시간이 걸릴 수 있음
+      // Render 무료 플랜 콜드 스타트를 위해 긴 타임아웃 설정
+      signal: AbortSignal.timeout(120000), // 120초 (2분)
     });
 
     console.log('Backend response status:', response.status);
