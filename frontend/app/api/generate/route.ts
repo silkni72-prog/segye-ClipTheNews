@@ -37,8 +37,9 @@ export async function POST(request: Request) {
     return NextResponse.json(data);
   } catch (error) {
     console.error('API error:', error);
+    console.error('BACKEND_URL:', BACKEND_URL);
     return NextResponse.json(
-      { message: '서버 연결에 실패했습니다. 백엔드 서버(http://localhost:8000)가 실행 중인지 확인해주세요.' },
+      { message: `서버 연결에 실패했습니다. 백엔드 서버(${BACKEND_URL})가 실행 중인지 확인해주세요.` },
       { status: 500 }
     );
   }
