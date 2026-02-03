@@ -1,6 +1,6 @@
-# ClipTheNews
+# ClipTheNews 🎬
 
-뉴스 URL과 시나리오를 입력하면 10초짜리 세로형 뉴스 영상(mp4)을 생성하는 SaaS 웹앱
+뉴스 URL과 시나리오를 입력하면 자동으로 세로형 뉴스 영상(mp4)을 생성하는 SaaS 웹앱
 
 ## 기술 스택
 
