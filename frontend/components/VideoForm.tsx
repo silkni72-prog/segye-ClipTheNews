@@ -117,7 +117,7 @@ export function VideoForm() {
           </div>
         )}
 
-        {(status === 'idle' || status === 'error') && status !== 'success' && (
+        {(status === 'idle' || status === 'error') && (
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label
@@ -168,7 +168,7 @@ export function VideoForm() {
 
             <button
               type="submit"
-              disabled={status === 'loading'}
+              disabled={false}
               className="w-full px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl text-lg font-semibold hover:shadow-xl hover:scale-[1.02] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
               영상 생성하기
