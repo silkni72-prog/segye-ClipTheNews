@@ -296,3 +296,142 @@ def generate_video(images: List[str], scenario: str, title: str) -> str:
         import traceback
         traceback.print_exc()
         raise Exception(f"영상 생성 실패: {str(e)}")
+
+
+def generate_video_with_voice(
+    images: List[str], 
+    audio_path: str,
+    subtitles: List[Dict],
+    title: str
+) -> str:
+    """
+    이미지 + 음성 + 동기화된 자막으로 영상 생성
+    
+    Args:
+        images: 이미지 파일 경로 리스트
+        audio_path: 음성 파일 경로 (.mp3)
+        subtitles: 타이밍 정보가 포함된 자막 리스트
+            [{'text': str, 'start': float, 'end': float, 'duration': float}, ...]
+        title: 영상 제목
+        
+    Returns:
+        생성된 영상 파일 이름
+    """
+    output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'output')
+    os.makedirs(output_dir, exist_ok=True)
+    
+    try:
+        # 1. 오디오 로드
+        audio = AudioFileClip(audio_path)
+        duration = audio.duration
+        
+        print(f"[INFO] Audio duration: {duration:.1f} seconds")
+        print(f"[INFO] Creating video with {len(images)} images and {len(subtitles)} subtitles")
+        
+        # 2. 이미지 클립 생성 (오디오 길이에 맞춤)
+        if not images:
+            raise ValueError("이미지가 없습니다.")
+        
+        # 이미지를 최대 4개로 제한
+        if len(images) > 4:
+            images = images[:4]
+        
+        duration_per_image = duration / len(images)
+        clips = []
+        
+        for idx, img_path in enumerate(images):
+            try:
+                cropped_path = _fit_and_crop_image(img_path)
+                clip = ImageClip(cropped_path).set_duration(duration_per_image)
+                clip = clip.fadein(0.5).fadeout(0.5)
+                clips.append(clip)
+                print(f"[OK] Processed image {idx+1}/{len(images)}")
+            except Exception as e:
+                print(f"[WARN] Failed to process image {idx+1}: {e}")
+                continue
+        
+        if not clips:
+            raise ValueError("처리 가능한 이미지가 없습니다.")
+        
+        # 3. 이미지 연결
+        video = concatenate_videoclips(clips, method="compose")
+        
+        # 4. 자막 추가 (타이밍에 맞춰)
+        overlays = []
+        
+        # 제목 (첫 3초)
+        if title:
+            try:
+                title_path = _create_text_overlay(title[:50], 100, 55, bg_color=(0, 0, 0, 200), text_color='#FFFFFF')
+                title_clip = ImageClip(title_path).set_duration(3.0)
+                title_clip = title_clip.set_position(('center', 50))
+                overlays.append(title_clip)
+                print(f"[OK] Added title overlay")
+            except Exception as e:
+                print(f"[WARN] Failed to add title: {e}")
+        
+        # 동기화된 자막 추가
+        for idx, sub in enumerate(subtitles):
+            try:
+                caption_text = sub['text']
+                start_time = sub['start']
+                sub_duration = sub['duration']
+                
+                caption_path = _create_text_overlay(
+                    caption_text, 
+                    1200, 
+                    65, 
+                    bg_color=(0, 0, 0, 180), 
+                    text_color='#FFD700'
+                )
+                
+                caption_clip = ImageClip(caption_path).set_duration(sub_duration)
+                caption_clip = caption_clip.set_start(start_time).set_position(('center', H - 600))
+                
+                overlays.append(caption_clip)
+                print(f"[OK] Added synced subtitle {idx+1}: {start_time:.1f}s-{sub['end']:.1f}s")
+                
+            except Exception as e:
+                print(f"[WARN] Failed to add subtitle {idx+1}: {e}")
+                continue
+        
+        # 5. 최종 합성
+        if overlays:
+            final = CompositeVideoClip([video] + overlays)
+        else:
+            final = video
+        
+        # 6. 오디오 추가 (핵심!)
+        final = final.set_audio(audio)
+        
+        # 7. 파일명 생성
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"voice_video_{timestamp}_{uuid.uuid4().hex[:8]}.mp4"
+        output_path = os.path.join(output_dir, filename)
+        
+        # 8. 영상 저장
+        print(f"[INFO] Writing video file with audio...")
+        final.write_videofile(
+            output_path,
+            fps=24,
+            codec='libx264',
+            audio_codec='aac',  # 오디오 코덱 지정
+            preset='ultrafast',
+            threads=4,
+            logger=None
+        )
+        
+        # 9. 정리
+        final.close()
+        audio.close()
+        for clip in clips:
+            clip.close()
+        
+        print(f"[OK] Voice video saved: {filename}")
+        return filename
+        
+    except Exception as e:
+        print(f"[ERROR] Voice video generation failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise Exception(f"음성 영상 생성 실패: {str(e)}")

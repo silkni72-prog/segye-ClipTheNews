@@ -15,13 +15,18 @@ html5lib==1.1
 
 # Text-to-Speech
 edge-tts==6.1.9
+gtts==2.5.0
+pydub==0.25.1
 
 # Video processing
 pillow>=10.0.0
 numpy>=1.24.0
+moviepy==1.0.3
 
-# AI (optional - for script generation)
+# AI (optional - for script generation and image generation)
 openai>=1.0.0
+# google-cloud-texttospeech==2.14.1  # 선택사항: 고품질 TTS
+# elevenlabs==0.2.24  # 선택사항: 최고품질 TTS
 
 # Utilities
 aiofiles==23.2.1
