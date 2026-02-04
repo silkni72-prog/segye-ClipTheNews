@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  # Redis - 작업 큐
+  redis:
+    image: redis:7-alpine
+    container_name: clipthenews-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - clipthenews-network
+
+  # FastAPI 백엔드
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: clipthenews-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    volumes:
+      - ./backend/output:/app/output
+      - ./backend/temp:/app/temp
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - clipthenews-network
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+
+  # RQ Worker - 백그라운드 작업 처리
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: clipthenews-worker
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    volumes:
+      - ./backend/output:/app/output
+      - ./backend/temp:/app/temp
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - clipthenews-network
+    command: python worker.py
+
+volumes:
+  redis_data:
+
+networks:
+  clipthenews-network:
+    driver: bridge

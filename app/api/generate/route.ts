@@ -40,10 +40,9 @@ export async function POST(request: Request) {
     
     console.log('✅ 스크립트:', script.slice(0, 100) + '...');
 
-    // 3단계: 결과 반환 (영상은 일단 더미)
-    // TODO: 나중에 실제 영상 생성 기능 추가
+    // 3단계: 결과 반환
     return NextResponse.json({
-      video_url: '/api/dummy-video',  // 더미 URL
+      video_url: '/api/dummy-video',  // 더미 URL (나중에 실제 영상 생성 추가)
       message: '스크립트가 생성되었습니다!',
       script: script,
       title: articleData.title,
@@ -76,7 +75,7 @@ async function scrapeArticle(url: string) {
     
     const html = await response.text();
     
-    // 간단한 HTML 파싱 (cheerio 없이)
+    // 간단한 HTML 파싱
     const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
     const title = titleMatch ? titleMatch[1].trim() : '';
     
@@ -84,7 +83,7 @@ async function scrapeArticle(url: string) {
     const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
     const summary = descMatch ? descMatch[1] : '';
     
-    // p 태그에서 본문 추출 (간단 버전)
+    // p 태그에서 본문 추출
     const paragraphs = html.match(/<p[^>]*>([^<]+)<\/p>/gi) || [];
     const content = paragraphs
       .slice(0, 5)
