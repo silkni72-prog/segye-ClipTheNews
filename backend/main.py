@@ -44,9 +44,9 @@ app.add_middleware(
 try:
     redis_conn = Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
     queue = Queue(connection=redis_conn)
-    print(f"✓ Redis 연결 성공: {REDIS_HOST}:{REDIS_PORT}")
+    print(f"[OK] Redis 연결 성공: {REDIS_HOST}:{REDIS_PORT}")
 except Exception as e:
-    print(f"✗ Redis 연결 실패: {e}")
+    print(f"[ERROR] Redis 연결 실패: {e}")
     redis_conn = None
     queue = None
 
@@ -99,10 +99,10 @@ async def create_job(request: JobRequest):
         # RQ 작업 등록
         job = queue.enqueue(
             render_job,
-            job_id=job_id,
-            article_url=request.article_url,
-            mode=request.mode.value,
-            job_id=job_id,  # RQ job id로도 사용
+            job_id,  # render_job의 첫 번째 인자
+            request.article_url,  # render_job의 두 번째 인자
+            request.mode.value,  # render_job의 세 번째 인자
+            job_id=job_id,  # RQ Job ID 설정
             job_timeout=JOB_TIMEOUT,
             result_ttl=JOB_RESULT_TTL
         )

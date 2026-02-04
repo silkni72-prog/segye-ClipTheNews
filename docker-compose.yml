@@ -31,6 +31,7 @@ services:
       - REDIS_DB=0
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
     volumes:
+      - ./backend:/app
       - ./backend/output:/app/output
       - ./backend/temp:/app/temp
     depends_on:
@@ -38,7 +39,7 @@ services:
         condition: service_healthy
     networks:
       - clipthenews-network
-    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
   # RQ Worker - 백그라운드 작업 처리
   worker:
@@ -52,6 +53,7 @@ services:
       - REDIS_DB=0
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
     volumes:
+      - ./backend:/app
       - ./backend/output:/app/output
       - ./backend/temp:/app/temp
     depends_on:

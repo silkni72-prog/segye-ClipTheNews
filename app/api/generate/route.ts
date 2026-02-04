@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
 
-// OpenAI 클라이언트 (선택사항)
-const openai = process.env.OPENAI_API_KEY 
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  : null;
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+const MAX_POLLING_TIME = 600000; // 10 minutes
+const POLLING_INTERVAL = 2000; // 2 seconds
 
 export async function POST(request: Request) {
   try {
@@ -21,33 +19,58 @@ export async function POST(request: Request) {
       );
     }
 
-    // 1단계: 기사 파싱
-    console.log('🔍 기사 파싱 중...');
-    const articleData = await scrapeArticle(news_url);
+    // 1단계: 백엔드에 작업 생성
+    console.log('🔄 백엔드에 작업 요청 중...');
     
-    if (!articleData.title) {
+    let jobResponse;
+    try {
+      jobResponse = await fetch(`${BACKEND_URL}/jobs`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          article_url: news_url,
+          mode: mode,
+        }),
+      });
+
+      if (!jobResponse.ok) {
+        const errorData = await jobResponse.json();
+        throw new Error(errorData.detail || '백엔드 서버 오류');
+      }
+    } catch (error) {
+      console.error('❌ 백엔드 연결 실패:', error);
       return NextResponse.json(
-        { message: '기사를 파싱할 수 없습니다. 다른 URL을 시도해주세요.' },
-        { status: 400 }
+        { 
+          message: '백엔드 서버에 연결할 수 없습니다. 백엔드가 실행 중인지 확인해주세요 (http://localhost:8000)' 
+        },
+        { status: 503 }
       );
     }
-    
-    console.log('✅ 제목:', articleData.title.slice(0, 50) + '...');
 
-    // 2단계: 스크립트 생성
-    console.log('📝 스크립트 생성 중...');
-    const script = await generateScript(articleData, mode);
+    const jobData = await jobResponse.json();
+    const jobId = jobData.job_id;
     
-    console.log('✅ 스크립트:', script.slice(0, 100) + '...');
+    console.log('✅ 작업 생성:', jobId);
 
-    // 3단계: 결과 반환
-    return NextResponse.json({
-      video_url: '/api/dummy-video',  // 더미 URL (나중에 실제 영상 생성 추가)
-      message: '스크립트가 생성되었습니다!',
-      script: script,
-      title: articleData.title,
-      summary: articleData.summary
-    });
+    // 2단계: 작업 상태 폴링
+    console.log('⏳ 영상 생성 대기 중...');
+    
+    const result = await pollJobStatus(jobId);
+    
+    if (result.status === 'finished' && result.video_url) {
+      console.log('✅ 영상 생성 완료:', result.video_url);
+      
+      return NextResponse.json({
+        video_url: `${BACKEND_URL}${result.video_url}`,
+        message: '영상이 생성되었습니다!',
+        job_id: jobId,
+        status: 'finished',
+      });
+    } else {
+      throw new Error(result.error || '영상 생성에 실패했습니다.');
+    }
 
   } catch (error) {
     console.error('❌ API 오류:', error);
@@ -60,111 +83,67 @@ export async function POST(request: Request) {
   }
 }
 
-// 기사 스크래핑 함수
-async function scrapeArticle(url: string) {
-  try {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    
-    const html = await response.text();
-    
-    // 간단한 HTML 파싱
-    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    const title = titleMatch ? titleMatch[1].trim() : '';
-    
-    // 메타 description 추출
-    const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
-    const summary = descMatch ? descMatch[1] : '';
-    
-    // p 태그에서 본문 추출
-    const paragraphs = html.match(/<p[^>]*>([^<]+)<\/p>/gi) || [];
-    const content = paragraphs
-      .slice(0, 5)
-      .map(p => p.replace(/<[^>]+>/g, ''))
-      .join(' ')
-      .slice(0, 500);
-    
-    return {
-      title: title || '제목 없음',
-      summary: summary || content || '내용 없음',
-      content: content
-    };
-    
-  } catch (error) {
-    console.error('스크래핑 오류:', error);
-    throw new Error('기사를 불러올 수 없습니다.');
-  }
-}
-
-// 스크립트 생성 함수
-async function generateScript(articleData: { title: string; summary: string }, mode: string) {
-  // OpenAI 사용 가능한 경우
-  if (openai) {
+// 작업 상태 폴링 함수
+async function pollJobStatus(jobId: string): Promise<{
+  status: string;
+  video_url?: string;
+  error?: string;
+}> {
+  const startTime = Date.now();
+  
+  while (Date.now() - startTime < MAX_POLLING_TIME) {
     try {
-      const prompt = mode === 'nyt_question'
-        ? `다음 뉴스를 20초 숏폼 영상용 스크립트로 작성하세요. 질문형으로 시작하세요.
-
-제목: ${articleData.title}
-요약: ${articleData.summary}
-
-요구사항:
-- 60-80단어 (20초 분량)
-- 호기심을 자극하는 질문으로 시작
-- 핵심 내용 2-3문장
-- 생각해볼 점으로 마무리
-
-스크립트만 출력하세요:`
-        : `다음 뉴스를 20초 숏폼 영상용 스크립트로 작성하세요. 관찰형 스타일로 작성하세요.
-
-제목: ${articleData.title}
-요약: ${articleData.summary}
-
-요구사항:
-- 60-80단어 (20초 분량)
-- 현상 묘사로 시작
-- 배경 설명
-- 의미 있는 통찰로 마무리
-
-스크립트만 출력하세요:`;
-
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
-        messages: [
-          { role: 'system', content: '당신은 숏폼 영상 스크립트 작가입니다.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.7,
-        max_tokens: 200
-      });
-
-      return completion.choices[0]?.message?.content || generateTemplateScript(articleData, mode);
+      // 상태 확인
+      const statusResponse = await fetch(`${BACKEND_URL}/status/${jobId}`);
+      
+      if (!statusResponse.ok) {
+        throw new Error('작업 상태를 확인할 수 없습니다.');
+      }
+      
+      const statusData = await statusResponse.json();
+      console.log(`[${jobId}] 상태: ${statusData.status}, 진행률: ${statusData.progress}%`);
+      
+      // 완료된 경우
+      if (statusData.status === 'finished') {
+        // 결과 조회
+        const resultResponse = await fetch(`${BACKEND_URL}/result/${jobId}`);
+        
+        if (!resultResponse.ok) {
+          throw new Error('작업 결과를 가져올 수 없습니다.');
+        }
+        
+        const resultData = await resultResponse.json();
+        
+        if (resultData.status === 'finished' && resultData.video_url) {
+          return {
+            status: 'finished',
+            video_url: resultData.video_url,
+          };
+        } else {
+          return {
+            status: 'failed',
+            error: resultData.error || '영상 생성에 실패했습니다.',
+          };
+        }
+      }
+      
+      // 실패한 경우
+      if (statusData.status === 'failed') {
+        return {
+          status: 'failed',
+          error: statusData.error || '영상 생성에 실패했습니다.',
+        };
+      }
+      
+      // 진행 중인 경우 - 대기 후 재시도
+      await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL));
       
     } catch (error) {
-      console.error('OpenAI 오류:', error);
-      // 폴백: 템플릿 사용
-      return generateTemplateScript(articleData, mode);
+      console.error('폴링 오류:', error);
+      throw error;
     }
   }
   
-  // OpenAI 없으면 템플릿 사용
-  return generateTemplateScript(articleData, mode);
-}
-
-// 템플릿 기반 스크립트 생성
-function generateTemplateScript(articleData: { title: string; summary: string }, mode: string) {
-  const title = articleData.title;
-  const summary = articleData.summary.slice(0, 150);
-  
-  if (mode === 'nyt_question') {
-    return `이 뉴스 들어보셨나요? ${title}. 최근 이 이슈가 화제입니다. ${summary}. 여러분은 어떻게 생각하시나요?`;
-  } else {
-    return `${title}. 이 사건의 배경을 살펴보면, ${summary}. 이것이 의미하는 바는 무엇일까요.`;
-  }
+  // 타임아웃
+  throw new Error('영상 생성 시간이 초과되었습니다. 다시 시도해주세요.');
 }

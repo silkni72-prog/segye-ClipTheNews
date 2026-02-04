@@ -12,6 +12,9 @@ interface VideoResponse {
   script?: string;
   title?: string;
   summary?: string;
+  job_id?: string;
+  status?: string;
+  progress?: number;
 }
 
 export function VideoForm() {
@@ -76,7 +79,31 @@ export function VideoForm() {
           영상 생성하기
         </h2>
 
-        {status === 'loading' && <LoadingSpinner />}
+        {status === 'loading' && (
+          <div className="space-y-6">
+            <LoadingSpinner />
+            <div className="text-center space-y-2">
+              <p className="text-gray-700 font-medium">영상을 생성하는 중입니다...</p>
+              <p className="text-gray-500 text-sm">이 작업은 30~60초 정도 소요됩니다.</p>
+              <div className="flex justify-center items-center gap-2 text-sm text-gray-600 mt-4">
+                <div className="flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+                  <span>기사 파싱</span>
+                </div>
+                <span>→</span>
+                <div className="flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 bg-purple-500 rounded-full animate-pulse"></span>
+                  <span>스크립트 생성</span>
+                </div>
+                <span>→</span>
+                <div className="flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                  <span>영상 렌더링</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {status === 'success' && result && (
           <div className="space-y-6">
@@ -85,6 +112,32 @@ export function VideoForm() {
                 ✓ {result.message}
               </p>
             </div>
+
+            {result.video_url && (
+              <div className="space-y-4">
+                <h3 className="font-semibold text-gray-900 text-lg">🎬 생성된 영상</h3>
+                <div className="relative rounded-xl overflow-hidden shadow-2xl bg-black">
+                  <video 
+                    controls 
+                    className="w-full"
+                    style={{ maxHeight: '600px' }}
+                  >
+                    <source src={result.video_url} type="video/mp4" />
+                    브라우저가 비디오 태그를 지원하지 않습니다.
+                  </video>
+                </div>
+                <a
+                  href={result.video_url}
+                  download
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm font-medium"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  영상 다운로드
+                </a>
+              </div>
+            )}
 
             {result.title && (
               <div className="p-4 bg-blue-50 rounded-lg">
