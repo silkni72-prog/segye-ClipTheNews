@@ -1,0 +1,39 @@
+# Render 자동 배포 설정
+services:
+  # Backend API Server
+  - type: web
+    name: clipthenews-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    region: oregon
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: REDIS_URL
+        sync: false
+      - key: LEONARDO_API_KEY
+        sync: false
+      - key: UNSPLASH_ACCESS_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+  
+  # Background Worker
+  - type: worker
+    name: clipthenews-worker
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: python worker.py
+    region: oregon
+    plan: free
+    envVars:
+      - key: REDIS_URL
+        sync: false
+      - key: LEONARDO_API_KEY
+        sync: false
+      - key: UNSPLASH_ACCESS_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false

@@ -19,8 +19,9 @@ COPY . .
 # 출력 디렉토리 생성
 RUN mkdir -p output temp
 
-# 포트 노출
+# 포트 노출 (Render는 동적 포트 사용)
 EXPOSE 8000
 
-# 기본 명령어 (docker-compose에서 오버라이드)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# 시작 명령어 (Render 호환)
+# Render는 $PORT 환경 변수를 제공
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}

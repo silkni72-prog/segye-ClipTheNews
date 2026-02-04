@@ -21,7 +21,8 @@ pydub==0.25.1
 # Video processing
 pillow>=10.0.0
 numpy>=1.24.0
-moviepy==1.0.3
+moviepy>=1.0.3
+imageio-ffmpeg>=0.4.9
 
 # AI (optional - for script generation and image generation)
 openai>=1.0.0

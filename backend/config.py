@@ -20,10 +20,26 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 TEMP_DIR.mkdir(exist_ok=True)
 
 # Redis configuration
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
-REDIS_DB = int(os.getenv("REDIS_DB", "0"))
-REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+# Upstash Redis URL 우선 사용 (전체 URL)
+REDIS_URL = os.getenv("REDIS_URL")
+
+# 없으면 개별 설정 사용
+if not REDIS_URL:
+    REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+    REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+    REDIS_DB = int(os.getenv("REDIS_DB", "0"))
+    REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+else:
+    # REDIS_URL에서 호스트, 포트 파싱 (로그용)
+    import re
+    match = re.search(r'redis://[^@]*@([^:]+):(\d+)', REDIS_URL)
+    if match:
+        REDIS_HOST = match.group(1)
+        REDIS_PORT = int(match.group(2))
+    else:
+        REDIS_HOST = "unknown"
+        REDIS_PORT = 6379
+    REDIS_DB = 0
 
 # API Keys (optional for enhanced features)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
